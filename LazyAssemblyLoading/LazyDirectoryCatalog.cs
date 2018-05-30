@@ -148,7 +148,15 @@ namespace LazyAssemblyLoading
             }
 
             cachedDataFile = $"{cacheFolder}\\{manifest.Name}.00000000000000.{lazyAssemblyLoadingDataFileExtension}";
-            var partsData = assemblyCatalog.Select(SerializableComposablePartDefinition.FromComposablePartDefinition).ToList();
+            var partsData = new List<SerializableComposablePartDefinition>();
+            try
+            {
+              partsData = assemblyCatalog.Select(SerializableComposablePartDefinition.FromComposablePartDefinition).ToList();
+            }
+            catch
+            {
+              // ignored
+            }
             using (var output = File.Open(cachedDataFile, FileMode.Create, FileAccess.Write))
             {
               serializer.Serialize(output, partsData);
