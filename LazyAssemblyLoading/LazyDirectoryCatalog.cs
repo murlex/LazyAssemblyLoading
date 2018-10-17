@@ -15,9 +15,10 @@ namespace LazyAssemblyLoading
   using System.ComponentModel.Composition.Primitives;
   using System.IO;
   using System.Linq;
+  using System.Threading;
   using System.Xml.Serialization;
 
-  using LazyAssemblyLoading.Serialization;
+  using Serialization;
 
   /// <summary>
   /// Discovers parts from transparently (on the fly) serialized part information.
@@ -77,14 +78,27 @@ namespace LazyAssemblyLoading
     {
       var cacheFolder = Path.Combine(Path.GetTempPath(), lazyAssemblyLoadingCacheFolder);
       Directory.CreateDirectory(cacheFolder);
-      CachePartsData(cacheFolder);
+      var cacheFolderMutex = new Mutex(false, @"Global\ElarisLazyDirectoryCatalog");
+      var ok = cacheFolderMutex.WaitOne(10000);
+      if (!ok)
+      {
+        throw new InvalidOperationException("Cannot acquire ownership of MEF lazy directory catalog mutex. Some processes hangs?");
+      }
+      try
+      {
+        CachePartsData(cacheFolder);
+      }
+      finally
+      {
+        cacheFolderMutex.ReleaseMutex();
+      }
 
       var serializedPartDefinitions = new List<SerializableComposablePartDefinition>();
       var cachedDataFiles = Directory.GetFiles(cacheFolder);
       var serializer = new XmlSerializer(typeof(List<SerializableComposablePartDefinition>));
       foreach (var dataFilePath in cachedDataFiles)
       {
-        using (var dataFile = File.Open(dataFilePath, FileMode.Open, FileAccess.Read))
+        using (var dataFile = File.Open(dataFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
           var one = (IEnumerable<SerializableComposablePartDefinition>)serializer.Deserialize(dataFile);
           serializedPartDefinitions.AddRange(one);
